@@ -1,4 +1,4 @@
-const CACHE='budget-v8-iconfix-1';
+const CACHE='budget-v9-editable-1';
 const ASSETS=['./','./index.html','./manifest.webmanifest','./budget-icon-v8-192.png','./budget-icon-v8-512.png'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))),self.clients.claim()])));

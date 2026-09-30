@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111827">
-<link rel="manifest" href="manifest.webmanifest?v=8-iconfix-1">
+<link rel="manifest" href="manifest.webmanifest?v=9">
 <title>My Budget</title>
 <style>
 :root{--bg:#0b1020;--card:#151c2f;--card2:#1b253c;--text:#f6f7fb;--muted:#9da9bd;--line:#2a3652;--accent:#6ea8fe;--good:#65d6a6;--bad:#ff7b7b}
@@ -19,8 +19,8 @@ input{width:100%;min-height:44px;border-radius:12px;border:1px solid var(--line)
 button{min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--text);padding:9px 13px;font-size:14px}button.primary{background:var(--accent);color:#081120;border:0;font-weight:700}
 .actions{display:flex;gap:8px;flex-wrap:wrap}.totalbox{background:var(--card2);border-radius:13px;padding:11px;margin-top:12px}.good{color:var(--good)}.bad{color:var(--bad)}
 .progress{height:10px;background:var(--card2);border-radius:999px;overflow:hidden;margin-top:10px}.bar{height:100%;background:var(--good);width:0}
-.done{display:flex;align-items:center;gap:9px;margin-top:12px}.done input{width:22px;min-height:auto;height:22px}.tiny{font-size:12px;color:var(--muted)}
-@media(max-width:390px){.grid{grid-template-columns:1fr 1fr}.row{grid-template-columns:34px minmax(0,1fr) 82px 40px}main{padding-left:10px;padding-right:10px}}
+.done{display:flex;align-items:center;gap:9px;margin-top:12px}.editgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.editcard{background:var(--card2);border-radius:13px;padding:11px}.editcard input{margin-top:6px}.calc{margin-top:5px;font-size:12px;color:var(--muted)}.done input{width:22px;min-height:auto;height:22px}.tiny{font-size:12px;color:var(--muted)}
+@media(max-width:390px){.editgrid{grid-template-columns:1fr}.grid{grid-template-columns:1fr 1fr}.row{grid-template-columns:34px minmax(0,1fr) 82px 40px}main{padding-left:10px;padding-right:10px}}
 </style>
 </head>
 <body><main>
@@ -32,17 +32,21 @@ button{min-height:44px;border-radius:12px;border:1px solid var(--line);backgroun
 <div class="card section">
  <div class="moneyrow"><div><b>Dad payoff</b><div class="label" id="dadText"></div></div><b id="dadPct"></b></div>
  <div class="progress"><div class="bar" id="dadBar"></div></div>
+ <div class="editgrid">
+  <label class="label editcard">Total owed<input id="dadTotalInput" type="number" min="0" step=".01" inputmode="decimal"><div class="calc">You can change this anytime.</div></label>
+  <label class="label editcard">Actually paid<input id="dadPaidInput" type="number" min="0" step=".01" inputmode="decimal"><div class="calc" id="dadCalculated"></div></label>
+ </div>
 </div>
 <div class="section"><b>Payday plan</b><div class="tiny">Tap a payday. You can edit every amount and expense.</div><div id="days"></div></div>
 <div class="grid section">
- <div class="card"><div class="label">Future vet savings</div><div class="big" id="vetTotal">$0.00</div></div>
- <div class="card"><div class="label">Dad paid</div><div class="big" id="dadPaid">$0.00</div></div>
+ <div class="card"><div class="label">Vet savings</div><div class="big" id="vetTotal">$0.00</div><label class="label" style="display:block;margin-top:10px">Actually saved<input id="vetSavedInput" type="number" min="0" step=".01" inputmode="decimal"></label><div class="calc" id="vetCalculated"></div></div>
+ <div class="card"><div class="label">Dad paid</div><div class="big" id="dadPaid">$0.00</div><div class="calc">Uses the editable “Actually paid” amount above.</div></div>
 </div>
 <div class="section actions"><button id="addPayday">+ Add payday</button><button id="restore">Import backup</button><button id="reset">Reset original plan</button></div>
 <input type="file" id="file" accept="application/json" hidden>
 </main>
 <script>
-const KEY='amanda-budget-v1', DAD_TOTAL=910;
+const KEY='amanda-budget-v1', META_KEY='amanda-budget-meta-v1';
 const original=[
 {date:'Sept 29',income:1315,done:false,vet:0,other:0,items:[['Car',400.30],['Insurance',416.50],['Gas',100],['Vet bill',300],['BMO',17.95],['ChatGPT',33]]},
 {date:'Oct 2',income:870,done:false,vet:0,other:0,items:[['YouTube',14.68],['Partial car / insurance',272.20],['Google storage',4.41],['ChatGPT',33],['Dad',130],['Gas',100]]},
@@ -57,7 +61,8 @@ const clone=x=>JSON.parse(JSON.stringify(x));
 const n=v=>Math.max(0,Number(v)||0);
 const signed=v=>Number.isFinite(Number(v))?Number(v):0;
 const cash=v=>(v<0?'−$'+Math.abs(v).toFixed(2):'$'+v.toFixed(2));
-let data;
+let data,meta={dadTotal:910,dadPaid:'',vetSaved:''};
+try{const m=JSON.parse(localStorage.getItem(META_KEY));if(m&&typeof m==='object')meta={...meta,...m}}catch(e){}
 try{
   const saved=JSON.parse(localStorage.getItem(KEY));
   data=(Array.isArray(saved) && saved.length>0) ? saved : clone(original);
@@ -65,19 +70,19 @@ try{
   data=clone(original);
 }
 data=data.map(d=>({...d,actualAvailable:(d.actualAvailable===null||d.actualAvailable===undefined||d.actualAvailable==='')?'':n(d.actualAvailable),items:(d.items||[]).map(x=>({...x,paid:!!x.paid,skipped:!!x.skipped}))}));
-function save(){localStorage.setItem(KEY,JSON.stringify(data))}
+function save(){localStorage.setItem(KEY,JSON.stringify(data));localStorage.setItem(META_KEY,JSON.stringify(meta))}
 function render(){
- const host=document.querySelector('#days');host.innerHTML='';let ai=0,al=0,vet=0,dp=0;
+ const host=document.querySelector('#days');host.innerHTML='';let ai=0,al=0,vetPlanned=0,dpCalculated=0;
  data.forEach((d,i)=>{
    const base=d.items.reduce((s,x)=>s+(x.skipped?0:n(x.a)),0), p=base+n(d.vet)+n(d.other), calculated=n(d.income)-p;
 const hasActual=d.actualAvailable!==''&&d.actualAvailable!==null&&d.actualAvailable!==undefined;
 const left=hasActual?n(d.actualAvailable):calculated;
 const difference=hasActual?left-calculated:0;
-   ai+=n(d.income);al+=left;vet+=n(d.vet);d.items.forEach(x=>{if(x.paid&&!x.skipped&&x.n.trim().toLowerCase()==='dad')dp+=n(x.a)});
+   ai+=n(d.income);al+=left;vetPlanned+=n(d.vet);d.items.forEach(x=>{if(x.paid&&!x.skipped&&x.n.trim().toLowerCase()==='dad')dpCalculated+=n(x.a)});
    const el=document.createElement('details');
    el.innerHTML=`<summary><div class="summary"><div><b>${esc(d.date)}</b><div class="label">Pay ${cash(n(d.income))} · Planned ${cash(p)}</div></div><div class="right"><div class="label">REMAINING</div><b class="${left<0?'bad':'good'}">${cash(left)}</b></div></div></summary>
    <div class="body">
-   <label class="label">Pay / income<input data-k="income" data-i="${i}" type="number" min="0" step=".01" value="${n(d.income).toFixed(2)}"></label>
+   <div class="editgrid"><label class="label">Payday name / date<input data-k="date" data-i="${i}" value="${escAttr(d.date)}"></label><label class="label">Pay / income<input data-k="income" data-i="${i}" type="number" min="0" step=".01" value="${n(d.income).toFixed(2)}"></label></div>
    <div style="margin-top:12px"><b>Expenses</b>${d.items.map((x,j)=>`<div class="row ${x.skipped?'skipped':''}"><input class="paidbox" aria-label="Paid or put aside" data-k="paid" data-i="${i}" data-j="${j}" type="checkbox" ${x.paid?'checked':''} ${x.skipped?'disabled':''}><input data-k="name" data-i="${i}" data-j="${j}" value="${escAttr(x.n)}"><input data-k="amount" data-i="${i}" data-j="${j}" type="number" min="0" step=".01" value="${n(x.a).toFixed(2)}"><button class="skip ${x.skipped?'active':''}" data-skip="${i},${j}" aria-label="Cannot pay this expense">⊘</button></div>`).join('')}<button data-add="${i}">+ Add expense</button></div>
    <div style="margin-top:12px"><label class="label">Future vet savings<input data-k="vet" data-i="${i}" type="number" min="0" step=".01" value="${n(d.vet).toFixed(2)}"></label></div>
    <div style="margin-top:9px"><label class="label">Other / non-recurring spending<input data-k="other" data-i="${i}" type="number" min="0" step=".01" value="${n(d.other).toFixed(2)}"></label></div>
@@ -86,9 +91,11 @@ const difference=hasActual?left-calculated:0;
    <div class="actions" style="margin-top:10px"><button data-remove-payday="${i}">Delete payday</button></div>
    </div>`;host.appendChild(el);
  });
- dp=Math.min(DAD_TOTAL,dp);const rem=Math.max(0,DAD_TOTAL-dp),pct=Math.min(100,Math.round(dp/DAD_TOTAL*100));
- allIncome.textContent=cash(ai);allLeft.textContent=cash(al);vetTotal.textContent=cash(vet);dadPaid.textContent=cash(dp);
- dadText.textContent=`${cash(dp)} paid · ${cash(rem)} remaining`;dadPct.textContent=pct+'%';dadBar.style.width=pct+'%';bind();
+ const dadTotal=n(meta.dadTotal);const dadActual=meta.dadPaid===''?dpCalculated:n(meta.dadPaid);const vetActual=meta.vetSaved===''?vetPlanned:n(meta.vetSaved);const rem=Math.max(0,dadTotal-dadActual),pct=dadTotal>0?Math.min(100,Math.round(dadActual/dadTotal*100)):0;
+ allIncome.textContent=cash(ai);allLeft.textContent=cash(al);vetTotal.textContent=cash(vetActual);dadPaid.textContent=cash(dadActual);
+ dadText.textContent=`${cash(dadActual)} paid · ${cash(rem)} remaining`;dadPct.textContent=pct+'%';dadBar.style.width=pct+'%';
+ dadTotalInput.value=dadTotal.toFixed(2);dadPaidInput.value=meta.dadPaid===''?'':n(meta.dadPaid).toFixed(2);dadPaidInput.placeholder=dpCalculated.toFixed(2);dadCalculated.textContent=`Calculated from checked Dad expenses: ${cash(dpCalculated)}${meta.dadPaid===''?' · currently using calculated amount':''}`;
+ vetSavedInput.value=meta.vetSaved===''?'':n(meta.vetSaved).toFixed(2);vetSavedInput.placeholder=vetPlanned.toFixed(2);vetCalculated.textContent=`Planned from paydays: ${cash(vetPlanned)}${meta.vetSaved===''?' · currently using planned amount':''}`;bind();
 }
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 function escAttr(s){return esc(s).replace(/"/g,'&quot;')}
@@ -96,20 +103,23 @@ function rerenderKeeping(el,fn){const det=el.closest('details'),idx=[...document
 function bind(){
  document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('change',e=>rerenderKeeping(e.target,()=>{
    const i=+e.target.dataset.i,k=e.target.dataset.k,j=+e.target.dataset.j;
-   if(k==='income'||k==='vet'||k==='other')data[i][k]=n(e.target.value);if(k==='actualAvailable')data[i].actualAvailable=e.target.value.trim()===''?'':n(e.target.value);
+   if(k==='income'||k==='vet'||k==='other')data[i][k]=n(e.target.value);if(k==='date')data[i].date=e.target.value.trim()||'Payday';if(k==='actualAvailable')data[i].actualAvailable=e.target.value.trim()===''?'':n(e.target.value);
    if(k==='done')data[i].done=e.target.checked;if(k==='paid')data[i].items[j].paid=e.target.checked;
    if(k==='name')data[i].items[j].n=e.target.value.trim()||'Expense';
    if(k==='amount')data[i].items[j].a=n(e.target.value);
  })));
  document.querySelectorAll('[data-add]').forEach(b=>b.addEventListener('click',e=>rerenderKeeping(e.currentTarget,()=>data[+e.currentTarget.dataset.add].items.push({n:'New expense',a:0}))));
  document.querySelectorAll('[data-skip]').forEach(b=>b.addEventListener('click',e=>{let [i,j]=e.currentTarget.dataset.skip.split(',').map(Number);rerenderKeeping(e.currentTarget,()=>{data[i].items[j].skipped=!data[i].items[j].skipped;if(data[i].items[j].skipped)data[i].items[j].paid=false})}));
+ dadTotalInput.addEventListener('change',()=>{meta.dadTotal=n(dadTotalInput.value);save();render()});
+ dadPaidInput.addEventListener('change',()=>{meta.dadPaid=dadPaidInput.value.trim()===''?'':n(dadPaidInput.value);save();render()});
+ vetSavedInput.addEventListener('change',()=>{meta.vetSaved=vetSavedInput.value.trim()===''?'':n(vetSavedInput.value);save();render()});
  document.querySelectorAll('[data-remove-payday]').forEach(b=>b.addEventListener('click',e=>{if(confirm('Delete this payday?'))rerenderKeeping(e.currentTarget,()=>data.splice(+e.currentTarget.dataset.removePayday,1))}));
 }
 addPayday.addEventListener('click',()=>{data.push({date:'New payday',income:0,done:false,vet:0,other:0,actualAvailable:'',items:[]});save();render();const ds=document.querySelectorAll('#days>details');ds[ds.length-1].open=true});
-backup.addEventListener('click',()=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='budget-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
+backup.addEventListener('click',()=>{const blob=new Blob([JSON.stringify({version:9,data,meta},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='budget-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
 restore.addEventListener('click',()=>file.click());
-file.addEventListener('change',async()=>{try{const x=JSON.parse(await file.files[0].text());if(!Array.isArray(x))throw 0;data=x;save();render();alert('Backup imported.')}catch(e){alert('That backup file could not be read.')}file.value=''});
-reset.addEventListener('click',()=>{if(confirm('Reset everything to the original plan?')){data=clone(original);save();render()}});
+file.addEventListener('change',async()=>{try{const x=JSON.parse(await file.files[0].text());if(Array.isArray(x)){data=x}else if(x&&Array.isArray(x.data)){data=x.data;if(x.meta&&typeof x.meta==='object')meta={...meta,...x.meta}}else throw 0;save();render();alert('Backup imported.')}catch(e){alert('That backup file could not be read.')}file.value=''});
+reset.addEventListener('click',()=>{if(confirm('Reset everything to the original plan?')){data=clone(original);meta={dadTotal:910,dadPaid:'',vetSaved:''};save();render()}});
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 render();
 </script></body></html>
