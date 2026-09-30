@@ -14,7 +14,7 @@ h1{font-size:26px;margin:0}.sub{color:var(--muted);font-size:13px}.grid{display:
 .big{font-size:24px;font-weight:750;margin-top:4px}.label{font-size:13px;color:var(--muted)}.section{margin-top:16px}
 details{background:var(--card);border:1px solid var(--line);border-radius:18px;margin:9px 0;overflow:hidden}summary{padding:15px;cursor:pointer;list-style:none}
 .summary{display:flex;justify-content:space-between;gap:12px}.right{text-align:right}.body{border-top:1px solid var(--line);padding:14px}
-.row{display:grid;grid-template-columns:38px minmax(0,1fr) 100px 44px;gap:7px;margin:7px 0;align-items:center;border-radius:12px}.row.skipped{background:#3b1e28;padding:5px}.row.skipped input:not([type=checkbox]){text-decoration:line-through;color:#ff8795}.paidbox{width:22px;height:22px;min-height:auto;justify-self:center}.skip.active{background:#3b1e28;color:#ff8795}.moneyrow{display:flex;justify-content:space-between;gap:10px;margin:7px 0}
+.row{display:grid;grid-template-columns:38px minmax(0,1fr) 100px 44px;gap:7px;margin:7px 0;align-items:center;border-radius:12px}.row.skipped{background:#3b1e28;padding:5px}.row.skipped input:not([type=checkbox]){text-decoration:line-through;color:#ff8795}.paidbox{appearance:none;-webkit-appearance:none;width:26px;height:26px;min-height:auto;justify-self:center;border:1px solid #5a4050;border-radius:7px;background:#241821;padding:0;display:grid;place-content:center}.paidbox:checked{background:#3b1e28;border-color:#ff8795}.paidbox:checked:after{content:'✓';color:#ff8795;font-size:18px;font-weight:800;line-height:1}.paidbox:disabled{opacity:.45}.skip.active{background:#3b1e28;color:#ff8795}.moneyrow{display:flex;justify-content:space-between;gap:10px;margin:7px 0}
 input{width:100%;min-height:44px;border-radius:12px;border:1px solid var(--line);background:#0f1628;color:var(--text);padding:9px;font-size:16px}
 button{min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--text);padding:9px 13px;font-size:14px}button.primary{background:var(--accent);color:#081120;border:0;font-weight:700}
 .actions{display:flex;gap:8px;flex-wrap:wrap}.totalbox{background:var(--card2);border-radius:13px;padding:11px;margin-top:12px}.good{color:var(--good)}.bad{color:var(--bad)}
@@ -55,13 +55,13 @@ const original=[
 ].map(d=>({...d,items:d.items.map(x=>({n:x[0],a:x[1],paid:false,skipped:false}))}));
 const clone=x=>JSON.parse(JSON.stringify(x));
 let data; try{data=JSON.parse(localStorage.getItem(KEY))||clone(original)}catch(e){data=clone(original)}
-data=data.map(d=>({...d,items:(d.items||[]).map(x=>({...x,paid:!!x.paid,skipped:!!x.skipped}))}));
+data=data.map(d=>({...d,adjustment:signed(d.adjustment),items:(d.items||[]).map(x=>({...x,paid:!!x.paid,skipped:!!x.skipped}))}));
 const n=v=>Math.max(0,Number(v)||0), cash=v=>(v<0?'−$'+Math.abs(v).toFixed(2):'$'+v.toFixed(2));
 function save(){localStorage.setItem(KEY,JSON.stringify(data))}
 function render(){
  const host=document.querySelector('#days');host.innerHTML='';let ai=0,al=0,vet=0,dp=0;
  data.forEach((d,i)=>{
-   const base=d.items.reduce((s,x)=>s+(x.skipped?0:n(x.a)),0), p=base+n(d.vet)+n(d.other), left=n(d.income)-p;
+   const base=d.items.reduce((s,x)=>s+(x.skipped?0:n(x.a)),0), p=base+n(d.vet)+n(d.other), left=n(d.income)-p+signed(d.adjustment);
    ai+=n(d.income);al+=left;vet+=n(d.vet);d.items.forEach(x=>{if(x.paid&&!x.skipped&&x.n.trim().toLowerCase()==='dad')dp+=n(x.a)});
    const el=document.createElement('details');
    el.innerHTML=`<summary><div class="summary"><div><b>${esc(d.date)}</b><div class="label">Pay ${cash(n(d.income))} · Planned ${cash(p)}</div></div><div class="right"><div class="label">REMAINING</div><b class="${left<0?'bad':'good'}">${cash(left)}</b></div></div></summary>
@@ -70,7 +70,7 @@ function render(){
    <div style="margin-top:12px"><b>Expenses</b>${d.items.map((x,j)=>`<div class="row ${x.skipped?'skipped':''}"><input class="paidbox" aria-label="Paid or put aside" data-k="paid" data-i="${i}" data-j="${j}" type="checkbox" ${x.paid?'checked':''} ${x.skipped?'disabled':''}><input data-k="name" data-i="${i}" data-j="${j}" value="${escAttr(x.n)}"><input data-k="amount" data-i="${i}" data-j="${j}" type="number" min="0" step=".01" value="${n(x.a).toFixed(2)}"><button class="skip ${x.skipped?'active':''}" data-skip="${i},${j}" aria-label="Cannot pay this expense">⊘</button></div>`).join('')}<button data-add="${i}">+ Add expense</button></div>
    <div style="margin-top:12px"><label class="label">Future vet savings<input data-k="vet" data-i="${i}" type="number" min="0" step=".01" value="${n(d.vet).toFixed(2)}"></label></div>
    <div style="margin-top:9px"><label class="label">Other / non-recurring spending<input data-k="other" data-i="${i}" type="number" min="0" step=".01" value="${n(d.other).toFixed(2)}"></label></div>
-   <div class="totalbox"><div class="moneyrow"><span>Expense total</span><b>${cash(base)}</b></div><div class="moneyrow"><span>Total planned</span><b>${cash(p)}</b></div><div class="moneyrow"><span>Available</span><b class="${left<0?'bad':'good'}">${cash(left)}</b></div></div>
+   <div style="margin-top:9px"><label class="label">Balance correction <span class="tiny">(use + or −)</span><input data-k="adjustment" data-i="${i}" type="number" step=".01" value="${signed(d.adjustment).toFixed(2)}"></label></div><div class="totalbox"><div class="moneyrow"><span>Expense total</span><b>${cash(base)}</b></div><div class="moneyrow"><span>Total planned</span><b>${cash(p)}</b></div><div class="moneyrow"><span>Available</span><b class="${left<0?'bad':'good'}">${cash(left)}</b></div></div>
    <label class="done"><input data-k="done" data-i="${i}" type="checkbox" ${d.done?'checked':''}> Payday completed</label>
    <div class="actions" style="margin-top:10px"><button data-remove-payday="${i}">Delete payday</button></div>
    </div>`;host.appendChild(el);
@@ -85,7 +85,7 @@ function rerenderKeeping(el,fn){const det=el.closest('details'),idx=[...document
 function bind(){
  document.querySelectorAll('[data-k]').forEach(el=>el.addEventListener('change',e=>rerenderKeeping(e.target,()=>{
    const i=+e.target.dataset.i,k=e.target.dataset.k,j=+e.target.dataset.j;
-   if(k==='income'||k==='vet'||k==='other')data[i][k]=n(e.target.value);
+   if(k==='income'||k==='vet'||k==='other')data[i][k]=n(e.target.value);if(k==='adjustment')data[i].adjustment=signed(e.target.value);
    if(k==='done')data[i].done=e.target.checked;if(k==='paid')data[i].items[j].paid=e.target.checked;
    if(k==='name')data[i].items[j].n=e.target.value.trim()||'Expense';
    if(k==='amount')data[i].items[j].a=n(e.target.value);
@@ -94,7 +94,7 @@ function bind(){
  document.querySelectorAll('[data-skip]').forEach(b=>b.addEventListener('click',e=>{let [i,j]=e.currentTarget.dataset.skip.split(',').map(Number);rerenderKeeping(e.currentTarget,()=>{data[i].items[j].skipped=!data[i].items[j].skipped;if(data[i].items[j].skipped)data[i].items[j].paid=false})}));
  document.querySelectorAll('[data-remove-payday]').forEach(b=>b.addEventListener('click',e=>{if(confirm('Delete this payday?'))rerenderKeeping(e.currentTarget,()=>data.splice(+e.currentTarget.dataset.removePayday,1))}));
 }
-addPayday.addEventListener('click',()=>{data.push({date:'New payday',income:0,done:false,vet:0,other:0,items:[]});save();render();const ds=document.querySelectorAll('#days>details');ds[ds.length-1].open=true});
+addPayday.addEventListener('click',()=>{data.push({date:'New payday',income:0,done:false,vet:0,other:0,adjustment:0,items:[]});save();render();const ds=document.querySelectorAll('#days>details');ds[ds.length-1].open=true});
 backup.addEventListener('click',()=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='budget-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
 restore.addEventListener('click',()=>file.click());
 file.addEventListener('change',async()=>{try{const x=JSON.parse(await file.files[0].text());if(!Array.isArray(x))throw 0;data=x;save();render();alert('Backup imported.')}catch(e){alert('That backup file could not be read.')}file.value=''});
