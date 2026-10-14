@@ -1,6 +1,6 @@
 {
-  "name": "My Budget V10",
-  "short_name": "My Budget V10",
+  "name": "My Budget V10.1",
+  "short_name": "My Budget",
   "description": "Budget, calendar, and weekly work timesheets",
   "start_url": "./",
   "scope": "./",
